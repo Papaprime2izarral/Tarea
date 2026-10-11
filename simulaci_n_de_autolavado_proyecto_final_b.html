@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Control e Inspección - Autolavado Secuencial</title>
+  <!-- Tailwind CSS por CDN para layout fluido -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    /* Estilos personalizados para interfaz de estudiante estilo Dashboard de Control */
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background-color: #f1f5f9;
+      color: #334155;
+    }
+
+    /* Colores estrictos de estado exigidos por el profesor */
+    .st-libre {
+      background-color: #10b981 !important; /* Verde */
+      color: white;
+    }
+    .st-ocupado {
+      background-color: #ef4444 !important; /* Rojo */
+      color: white;
+    }
+    .st-bloqueado {
+      background-color: #f59e0b !important; /* Amarillo */
+      color: #1e293b;
+    }
+
+    /* Scrollbar personalizada para terminal de logs */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+  <!-- BARRA SUPERIOR DE ENCABEZADO ACADÉMICO -->
+  <header class="bg-slate-900 text-white px-6 py-3 flex justify-between items-center border-b border-slate-700 shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="bg-teal-600 p-2 rounded-lg">
+        <i class="fa-solid fa-industry text-xl text-white"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg leading-tight">Simulación y Modelado: Sistema de Autolavado</h1>
+        <p class="text-xs text-slate-400">Proyecto de Cátedra - Teoría de Colas y Eventos Discretos</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center space-x-6">
+      <div class="text-right">
+        <div class="text-xs text-slate-400 font-mono">RELOJ DE SIMULACIÓN</div>
+        <div id="reloj-simulacion" class="text-xl font-bold font-mono text-teal-400">00:00:00</div>
+      </div>
+      <div class="border-l border-slate-700 pl-4">
+        <span id="badge-estado-sim" class="px-3 py-1 rounded text-xs font-bold bg-emerald-500 text-slate-950">EJECUTANDO</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL TIPO DASHBOARD -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- SIDEBAR IZQUIERDO: CONTROLES Y PARÁMETROS -->
+    <aside class="w-80 bg-slate-800 text-slate-200 p-5 flex flex-col justify-between overflow-y-auto border-r border-slate-700 shrink-0">
+      <div class="space-y-6">
+        <div>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-teal-400 mb-3 border-b border-slate-700 pb-1">
+            <i class="fa-solid fa-sliders me-1"></i> Parámetros de Entrada
+          </h2>
+
+          <!-- Tasa de Llegada de Autos -->
+          <div class="mb-4">
+            <div class="flex justify-between text-sm mb-1">
+              <label class="font-medium text-slate-300">Intervalo de Llegada:</label>
+              <span id="valTasaLlegada" class="font-bold text-teal-400">5s</span>
+            </div>
+            <input type="range" id="inputTasaLlegada" min="2" max="15" value="5" step="1" 
+                   class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                   oninput="actualizarTasa(this.value)">
+            <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+              <span>2s (Tráfico Alto)</span>
+              <span>15s (Bajo)</span>
+            </div>
+          </div>
+
+          <!-- Tarifa de Cobro -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-300 mb-1">Tarifa por Lavado ($):</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">$</span>
+              <input type="number" id="inputTarifa" value="15" min="5" max="100" 
+                     class="w-full bg-slate-900 border border-slate-700 rounded py-1.5 pl-8 pr-3 text-sm text-white focus:outline-none focus:border-teal-500"
+                     onchange="actualizarTarifa(this.value)">
+            </div>
+          </div>
+        </div>
+
+        <!-- Controles de Velocidad de la Simulación -->
+        <div>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-teal-400 mb-3 border-b border-slate-700 pb-1">
+            <i class="fa-solid fa-gauge-high me-1"></i> Velocidad de Ejecución
+          </h2>
+          <div class="grid grid-cols-4 gap-2 mb-4">
+            <button onclick="cambiarVelocidad(0.5)" id="btn-vel-05" class="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-xs rounded font-mono font-bold text-slate-300">0.5x</button>
+            <button onclick="cambiarVelocidad(1)" id="btn-vel-1" class="py-1 px-2 bg-teal-600 text-xs rounded font-mono font-bold text-white">1.0x</button>
+            <button onclick="cambiarVelocidad(2)" id="btn-vel-2" class="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-xs rounded font-mono font-bold text-slate-300">2.0x</button>
+            <button onclick="cambiarVelocidad(5)" id="btn-vel-5" class="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-xs rounded font-mono font-bold text-slate-300">5.0x</button>
+          </div>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-teal-400 mb-3 border-b border-slate-700 pb-1">
+            <i class="fa-solid fa-gamepad me-1"></i> Panel de Mando
+          </h2>
+          <div class="space-y-2">
+            <button id="btnPausa" onclick="pausarSimulacion()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded text-sm transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-pause"></i> Pausar Simulación
+            </button>
+            <button onclick="reiniciarSimulacion()" class="w-full bg-rose-700 hover:bg-rose-600 text-white font-bold py-2 px-4 rounded text-sm transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-rotate-right"></i> Reiniciar Datos
+            </button>
+            <button onclick="forzarLlegadaVehiculo()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 font-bold py-2 px-4 rounded text-sm transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-plus text-teal-400"></i> Insertar Auto Manual
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leyenda de Estados Obligatorios -->
+      <div class="mt-6 pt-4 border-t border-slate-700">
+        <div class="text-[11px] font-bold text-slate-400 uppercase mb-2">Estados de Estación:</div>
+        <div class="grid grid-cols-3 gap-1 text-[11px] text-center font-bold">
+          <div class="bg-emerald-500 text-slate-950 p-1 rounded">LIBRE</div>
+          <div class="bg-red-500 text-white p-1 rounded">OCUPADO</div>
+          <div class="bg-amber-500 text-slate-950 p-1 rounded">BLOQUEO</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ÁREA CENTRAL: CARRIL VERTICAL Y SIMULACIÓN EN VIVO -->
+    <main class="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
+      
+      <!-- Fila Superior: Carril de Proceso Visual (Diseño Vertical Compacto) -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="font-bold text-slate-800 text-md flex items-center gap-2">
+            <i class="fa-solid fa-diagram-next text-teal-600"></i> Flujo Secuencial de Producción
+          </h2>
+          <div class="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full border border-slate-200 font-medium">
+            Cola de Espera Exterior: <span id="cant-cola" class="font-bold text-indigo-600">0 Vehículos</span>
+          </div>
+        </div>
+
+        <!-- Las 4 Estaciones Secuenciales en Grilla Horizontal -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="contenedor-estaciones">
+          
+          <!-- Estación 1 -->
+          <div id="estacion-card-1" class="st-libre rounded-lg p-4 transition-all duration-300 shadow">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider opacity-80">Estación 1</span>
+              <span id="badge-st-1" class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-black/20">LIBRE</span>
+            </div>
+            <h3 class="font-bold text-lg mb-1">1. Llegada</h3>
+            <p class="text-xs opacity-90 mb-3">Registro & Pago</p>
+            <div class="flex justify-between items-end border-t border-white/20 pt-2 text-xs">
+              <span>Auto actual:</span>
+              <span id="auto-st-1" class="font-mono font-bold">---</span>
+            </div>
+            <div class="flex justify-between items-end text-xs mt-1">
+              <span>Tiempo rest:</span>
+              <span id="time-st-1" class="font-mono font-bold">0s</span>
+            </div>
+          </div>
+
+          <!-- Estación 2 -->
+          <div id="estacion-card-2" class="st-libre rounded-lg p-4 transition-all duration-300 shadow">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider opacity-80">Estación 2</span>
+              <span id="badge-st-2" class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-black/20">LIBRE</span>
+            </div>
+            <h3 class="font-bold text-lg mb-1">2. Aspirado</h3>
+            <p class="text-xs opacity-90 mb-3">Limpieza de Cabina</p>
+            <div class="flex justify-between items-end border-t border-white/20 pt-2 text-xs">
+              <span>Auto actual:</span>
+              <span id="auto-st-2" class="font-mono font-bold">---</span>
+            </div>
+            <div class="flex justify-between items-end text-xs mt-1">
+              <span>Tiempo rest:</span>
+              <span id="time-st-2" class="font-mono font-bold">0s</span>
+            </div>
+          </div>
+
+          <!-- Estación 3 -->
+          <div id="estacion-card-3" class="st-libre rounded-lg p-4 transition-all duration-300 shadow">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider opacity-80">Estación 3</span>
+              <span id="badge-st-3" class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-black/20">LIBRE</span>
+            </div>
+            <h3 class="font-bold text-lg mb-1">3. Lavado</h3>
+            <p class="text-xs opacity-90 mb-3">Inyección & Enjuague</p>
+            <div class="flex justify-between items-end border-t border-white/20 pt-2 text-xs">
+              <span>Auto actual:</span>
+              <span id="auto-st-3" class="font-mono font-bold">---</span>
+            </div>
+            <div class="flex justify-between items-end text-xs mt-1">
+              <span>Tiempo rest:</span>
+              <span id="time-st-3" class="font-mono font-bold">0s</span>
+            </div>
+          </div>
+
+          <!-- Estación 4 -->
+          <div id="estacion-card-4" class="st-libre rounded-lg p-4 transition-all duration-300 shadow">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider opacity-80">Estación 4</span>
+              <span id="badge-st-4" class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-black/20">LIBRE</span>
+            </div>
+            <h3 class="font-bold text-lg mb-1">4. Secado</h3>
+            <p class="text-xs opacity-90 mb-3">Turbina de Viento</p>
+            <div class="flex justify-between items-end border-t border-white/20 pt-2 text-xs">
+              <span>Auto actual:</span>
+              <span id="auto-st-4" class="font-mono font-bold">---</span>
+            </div>
+            <div class="flex justify-between items-end text-xs mt-1">
+              <span>Tiempo rest:</span>
+              <span id="time-st-4" class="font-mono font-bold">0s</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Fila Inferior: Dashboard de Indicadores y Gráfico Visual en Canvas -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Tarjetas de Métricas Directas -->
+        <div class="lg:col-span-2 grid grid-cols-2 gap-4">
+          
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div class="text-xs text-slate-500 font-medium mb-1">INGRESOS TOTALES RECAUDADOS</div>
+            <div id="dash-ingresos" class="text-2xl font-bold text-emerald-600 font-mono">$0.00</div>
+            <div class="text-[11px] text-slate-400 mt-2">Calculado con tarifa actual</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div class="text-xs text-slate-500 font-medium mb-1">TOTAL FACTURAS / AUTOS</div>
+            <div id="dash-facturas" class="text-2xl font-bold text-slate-800 font-mono">0</div>
+            <div class="text-[11px] text-slate-400 mt-2">Vehículos atendidos completos</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div class="text-xs text-slate-500 font-medium mb-1">TIEMPO PROMEDIO SERVICIO</div>
+            <div id="dash-promedio" class="text-2xl font-bold text-indigo-600 font-mono">0.0 seg</div>
+            <div class="text-[11px] text-slate-400 mt-2">Permanencia en el sistema</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-rose-500">
+            <div class="text-xs text-slate-500 font-medium mb-1">CUELLO DE BOTELLA CRÍTICO</div>
+            <div id="dash-cuello" class="text-lg font-bold text-rose-600 truncate">Ninguno</div>
+            <div class="text-[11px] text-slate-400 mt-2">Estación con mayor saturación</div>
+          </div>
+
+          <!-- Tabla de Porcentajes de Uso por Estación -->
+          <div class="col-span-2 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <h3 class="text-xs font-bold text-slate-700 uppercase mb-3">Utilización por Estación (%)</h3>
+            <div class="space-y-2">
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span>1. Llegada (3s)</span>
+                  <span id="pct-txt-1" class="font-bold">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                  <div id="pct-bar-1" class="bg-teal-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span>2. Aspirado (6s)</span>
+                  <span id="pct-txt-2" class="font-bold">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                  <div id="pct-bar-2" class="bg-cyan-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span>3. Lavado (8s)</span>
+                  <span id="pct-txt-3" class="font-bold">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                  <div id="pct-bar-3" class="bg-amber-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span>4. Secado (5s)</span>
+                  <span id="pct-txt-4" class="font-bold">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                  <div id="pct-bar-4" class="bg-indigo-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Terminal de Consola y Gráfico Simple -->
+        <div class="bg-slate-900 rounded-xl p-4 flex flex-col justify-between text-slate-300 font-mono text-xs border border-slate-800">
+          <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-800">
+            <span class="text-teal-400 font-bold"><i class="fa-solid fa-terminal me-1"></i> LOG DE EVENTOS</span>
+            <button onclick="limpiarLog()" class="text-[10px] text-slate-500 hover:text-slate-300">LIMPIAR</button>
+          </div>
+          
+          <div id="logTerminal" class="flex-1 overflow-y-auto space-y-1 my-2 pr-1 h-48">
+            <div class="text-slate-500">> Sistema iniciado correctamente...</div>
+          </div>
+
+          <!-- Canvas para Gráfico Dinámico Hecho a Mano -->
+          <div class="border-t border-slate-800 pt-2 mt-2">
+            <div class="text-[10px] text-slate-400 mb-1">MONITOREO DE COLA DE ESPERA EN TIEMPO REAL</div>
+            <canvas id="chartCanvas" height="80" class="w-full bg-slate-950 rounded"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- JAVASCRIPT NATIVO AUTO-CONTENIDO -->
+  <script>
+    // Configuración base fija de las 4 estaciones
+    const CONFIG = [
+      { id: 1, nombre: "Llegada", duracion: 3 },
+      { id: 2, nombre: "Aspirado", duracion: 6 },
+      { id: 3, nombre: "Lavado", duracion: 8 },
+      { id: 4, nombre: "Secado", duracion: 5 }
+    ];
+
+    // Variables de estado del modelo
+    let estadoSim = {
+      segundos: 0,
+      tasaLlegada: 5,
+      tarifa: 15.00,
+      velocidad: 1.0,
+      pausado: false,
+      cola: [],
+      contadorVehiculos: 1,
+      facturasTotal: 0,
+      ingresosTotal: 0,
+      acumuladoTiempoTotal: 0,
+      timer: null,
+      ultimaLlegada: 0,
+      historialCola: [] // Para el gráfico en canvas
+    };
+
+    // Objeto para las 4 estaciones
+    let estaciones = [
+      { id: 1, estado: 'LIBRE', auto: null, tiempoRestante: 0, ocupadoSeg: 0 },
+      { id: 2, estado: 'LIBRE', auto: null, tiempoRestante: 0, ocupadoSeg: 0 },
+      { id: 3, estado: 'LIBRE', auto: null, tiempoRestante: 0, ocupadoSeg: 0 },
+      { id: 4, estado: 'LIBRE', auto: null, tiempoRestante: 0, ocupadoSeg: 0 }
+    ];
+
+    window.onload = function() {
+      iniciarLoop();
+    };
+
+    /* MOTOR DE LA SIMULACIÓN */
+    function iniciarLoop() {
+      if (estadoSim.timer) clearInterval(estadoSim.timer);
+
+      estadoSim.timer = setInterval(() => {
+        if (!estadoSim.pausado) {
+          pasoSimulacion();
+        }
+      }, 1000 / estadoSim.velocidad);
+    }
+
+    function pasoSimulacion() {
+      estadoSim.segundos++;
+      actualizarReloj();
+
+      // 1. Arribo de Vehículos
+      if (estadoSim.segundos - estadoSim.ultimaLlegada >= estadoSim.tasaLlegada) {
+        estadoSim.ultimaLlegada = estadoSim.segundos;
+        arribarAuto();
+      }
+
+      // 2. Transiciones de Estaciones (de derecha a izquierda: 4 -> 1)
+      for (let i = 3; i >= 0; i--) {
+        let est = estaciones[i];
+
+        if (est.estado === 'OCUPADO') {
+          est.ocupadoSeg++;
+          est.tiempoRestante--;
+
+          if (est.tiempoRestante <= 0) {
+            intentarAvanzar(i);
+          }
+        } else if (est.estado === 'BLOQUEADO') {
+          est.ocupadoSeg++; // Bloqueo suma como uso ocupado
+          intentarAvanzar(i);
+        }
+      }
+
+      // 3. Tomar auto de la cola exterior si la primera estación está libre
+      if (estaciones[0].estado === 'LIBRE' && estadoSim.cola.length > 0) {
+        let siguienteAuto = estadoSim.cola.shift();
+        ingresarEstacion(0, siguienteAuto);
+      }
+
+      // Record de historial para gráfico
+      estadoSim.historialCola.push(estadoSim.cola.length);
+      if (estadoSim.historialCola.length > 30) estadoSim.historialCola.shift();
+
+      // Actualizar UI general
+      renderUI();
+      dibujarGraficoCola();
+    }
+
+    function arribarAuto() {
+      let auto = {
+        id: estadoSim.contadorVehiculos++,
+        tiempoEntrada: estadoSim.segundos
+      };
+
+      if (estaciones[0].estado === 'LIBRE') {
+        ingresarEstacion(0, auto);
+      } else {
+        estadoSim.cola.push(auto);
+        logEvent(`Vehículo V-${auto.id} ingresó a la cola de espera.`);
+      }
+    }
+
+    function ingresarEstacion(idx, auto) {
+      estaciones[idx].estado = 'OCUPADO';
+      estaciones[idx].auto = auto;
+      estaciones[idx].tiempoRestante = CONFIG[idx].duracion;
+      logEvent(`V-${auto.id} ingresó a Estación ${idx + 1} (${CONFIG[idx].nombre}).`);
+    }
+
+    function intentarAvanzar(idx) {
+      let autoActual = estaciones[idx].auto;
+
+      if (idx === 3) {
+        // Fin de la línea (Secado)
+        estaciones[idx].estado = 'LIBRE';
+        estaciones[idx].auto = null;
+
+        estadoSim.facturasTotal++;
+        estadoSim.ingresosTotal += estadoSim.tarifa;
+        let permanencia = estadoSim.segundos - autoActual.tiempoEntrada;
+        estadoSim.acumuladoTiempoTotal += permanencia;
+
+        logEvent(`V-${autoActual.id} FINALIZÓ. Facturado: $${estadoSim.tarifa.toFixed(2)} (T: ${permanencia}s).`);
+      } else {
+        let sigIdx = idx + 1;
+        if (estaciones[sigIdx].estado === 'LIBRE') {
+          estaciones[idx].estado = 'LIBRE';
+          estaciones[idx].auto = null;
+          ingresarEstacion(sigIdx, autoActual);
+        } else {
+          if (estaciones[idx].estado !== 'BLOQUEADO') {
+            estaciones[idx].estado = 'BLOQUEADO';
+            logEvent(`⚠️ Estación ${idx + 1} BLOQUEADA por Estación ${sigIdx + 1}.`);
+          }
+        }
+      }
+    }
+
+    /* RENDERING DE INTERFAZ DE USUARIO */
+    function renderUI() {
+      // Cola
+      document.getElementById('cant-cola').innerText = `${estadoSim.cola.length} Vehículos`;
+
+      // Renderizar 4 Estaciones
+      estaciones.forEach((e, idx) => {
+        let num = idx + 1;
+        let card = document.getElementById(`estacion-card-${num}`);
+        let badge = document.getElementById(`badge-st-${num}`);
+        let autoTxt = document.getElementById(`auto-st-${num}`);
+        let timeTxt = document.getElementById(`time-st-${num}`);
+
+        card.className = "rounded-lg p-4 transition-all duration-300 shadow ";
+
+        if (e.estado === 'LIBRE') {
+          card.classList.add('st-libre');
+          badge.innerText = 'LIBRE';
+          autoTxt.innerText = '---';
+          timeTxt.innerText = '0s';
+        } else if (e.estado === 'OCUPADO') {
+          card.classList.add('st-ocupado');
+          badge.innerText = 'OCUPADO';
+          autoTxt.innerText = `V-${e.auto ? e.auto.id : ''}`;
+          timeTxt.innerText = `${e.tiempoRestante}s`;
+        } else if (e.estado === 'BLOQUEADO') {
+          card.classList.add('st-bloqueado');
+          badge.innerText = 'BLOQUEADO';
+          autoTxt.innerText = `V-${e.auto ? e.auto.id : ''}`;
+          timeTxt.innerText = 'ESPERANDO';
+        }
+
+        // Cálculos de porcentaje de utilización
+        let pct = estadoSim.segundos > 0 ? Math.round((e.ocupadoSeg / estadoSim.segundos) * 100) : 0;
+        if (pct > 100) pct = 100;
+
+        document.getElementById(`pct-txt-${num}`).innerText = `${pct}%`;
+        document.getElementById(`pct-bar-${num}`).style.width = `${pct}%`;
+      });
+
+      // Render Dashboard
+      document.getElementById('dash-ingresos').innerText = `$${estadoSim.ingresosTotal.toFixed(2)}`;
+      document.getElementById('dash-facturas').innerText = estadoSim.facturasTotal;
+
+      let prom = estadoSim.facturasTotal > 0 ? (estadoSim.acumuladoTiempoTotal / estadoSim.facturasTotal).toFixed(1) : 0;
+      document.getElementById('dash-promedio').innerText = `${prom} seg`;
+
+      // Detección de Cuello de Botella
+      let maxUtil = -1;
+      let cuelloNom = "Ninguno";
+      estaciones.forEach((e, i) => {
+        let util = estadoSim.segundos > 0 ? (e.ocupadoSeg / estadoSim.segundos) : 0;
+        if (util > maxUtil && util > 0.15) {
+          maxUtil = util;
+          cuelloNom = `${CONFIG[i].id}. ${CONFIG[i].nombre}`;
+        }
+      });
+      document.getElementById('dash-cuello').innerText = cuelloNom;
+    }
+
+    function actualizarReloj() {
+      let h = String(Math.floor(estadoSim.segundos / 3600)).padStart(2, '0');
+      let m = String(Math.floor((estadoSim.segundos % 3600) / 60)).padStart(2, '0');
+      let s = String(estadoSim.segundos % 60).padStart(2, '0');
+      document.getElementById('reloj-simulacion').innerText = `${h}:${m}:${s}`;
+    }
+
+    /* DIBUJO DE GRÁFICO EN CANVAS */
+    function dibujarGraficoCola() {
+      let canvas = document.getElementById('chartCanvas');
+      if (!canvas) return;
+      let ctx = canvas.getContext('2d');
+      
+      canvas.width = canvas.parentElement.clientWidth;
+      let w = canvas.width;
+      let h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (estadoSim.historialCola.length < 2) return;
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#2dd4bf';
+      ctx.lineWidth = 2;
+
+      let step = w / 30;
+      let maxVal = Math.max(...estadoSim.historialCola, 5);
+
+      estadoSim.historialCola.forEach((val, i) => {
+        let x = i * step;
+        let y = h - ((val / maxVal) * (h - 10)) - 5;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+
+      ctx.stroke();
+    }
+
+    /* EVENTOS Y CONTROLES DE USUARIO */
+    function actualizarTasa(val) {
+      estadoSim.tasaLlegada = parseInt(val);
+      document.getElementById('valTasaLlegada').innerText = `${val}s`;
+    }
+
+    function actualizarTarifa(val) {
+      estadoSim.tarifa = parseFloat(val) || 15.00;
+    }
+
+    function cambiarVelocidad(vel) {
+      estadoSim.velocidad = vel;
+
+      // Resaltar botones
+      [05, 1, 2, 5].forEach(v => {
+        let btn = document.getElementById(`btn-vel-${v}`);
+        if (btn) {
+          btn.className = "py-1 px-2 bg-slate-700 hover:bg-slate-600 text-xs rounded font-mono font-bold text-slate-300";
+        }
+      });
+
+      let actual = document.getElementById(`btn-vel-${vel === 0.5 ? '05' : vel}`);
+      if (actual) {
+        actual.className = "py-1 px-2 bg-teal-600 text-xs rounded font-mono font-bold text-white";
+      }
+
+      iniciarLoop();
+      logEvent(`Velocidad configurada en ${vel}x.`);
+    }
+
+    function pausarSimulacion() {
+      estadoSim.pausado = !estadoSim.pausado;
+      let btn = document.getElementById('btnPausa');
+      let badge = document.getElementById('badge-estado-sim');
+
+      if (estadoSim.pausado) {
+        btn.innerHTML = `<i class="fa-solid fa-play"></i> Reanudar Simulación`;
+        btn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded text-sm transition flex items-center justify-center gap-2";
+        badge.className = "px-3 py-1 rounded text-xs font-bold bg-amber-500 text-slate-950";
+        badge.innerText = "PAUSADO";
+        logEvent("SIMULACIÓN PAUSADA.");
+      } else {
+        btn.innerHTML = `<i class="fa-solid fa-pause"></i> Pausar Simulación`;
+        btn.className = "w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded text-sm transition flex items-center justify-center gap-2";
+        badge.className = "px-3 py-1 rounded text-xs font-bold bg-emerald-500 text-slate-950";
+        badge.innerText = "EJECUTANDO";
+        logEvent("SIMULACIÓN REANUDADA.");
+      }
+    }
+
+    function reiniciarSimulacion() {
+      estadoSim = {
+        segundos: 0,
+        tasaLlegada: parseInt(document.getElementById('inputTasaLlegada').value),
+        tarifa: parseFloat(document.getElementById('inputTarifa').value) || 15.00,
+        velocidad: 1.0,
+        pausado: false,
+        cola: [],
+        contadorVehiculos: 1,
+        facturasTotal: 0,
+        ingresosTotal: 0,
+        acumuladoTiempoTotal: 0,
+        timer: null,
+        ultimaLlegada: 0,
+        historialCola: []
+      };
+
+      estaciones.forEach(e => {
+        e.estado = 'LIBRE';
+        e.auto = null;
+        e.tiempoRestante = 0;
+        e.ocupadoSeg = 0;
+      });
+
+      cambiarVelocidad(1);
+      actualizarReloj();
+      renderUI();
+      limpiarLog();
+      logEvent("Reiniciando simulación a valores iniciales.");
+    }
+
+    function forzarLlegadaVehiculo() {
+      arribarAuto();
+      renderUI();
+    }
+
+    function logEvent(text) {
+      let logBox = document.getElementById('logTerminal');
+      let h = String(Math.floor(estadoSim.segundos / 3600)).padStart(2, '0');
+      let m = String(Math.floor((estadoSim.segundos % 3600) / 60)).padStart(2, '0');
+      let s = String(estadoSim.segundos % 60).padStart(2, '0');
+
+      logBox.innerHTML += `<div class="text-slate-300"><span class="text-slate-500">[${h}:${m}:${s}]</span> ${text}</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function limpiarLog() {
+      document.getElementById('logTerminal').innerHTML = '<div class="text-slate-500">> Logs limpiados por usuario...</div>';
+    }
+  </script>
+</body>
+</html>
